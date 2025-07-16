@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive/hive.dart';
 
 import 'onboarding_screen.dart';
 import 'add_entry_screen.dart';
@@ -19,6 +20,7 @@ import 'models/password_entry.dart';
 import 'secure_storage_manager.dart';
 import 'settings_screen.dart';
 import 'utils/vault_exporter.dart';
+import 'utils/vault_importer.dart';
 
 enum FilterType { both, service, username }
 
@@ -284,27 +286,35 @@ class _HomeScreenState extends State<HomeScreen> {
           barrierDismissible: false,
           builder: (_) => const Center(child: CircularProgressIndicator()),
         );
-        final restoredEntries = await VaultBackupManager.restoreFromDrive(
-          account,
-        );
+
+        final restoredEntries = await VaultBackupManager.restoreFromDrive(account);
+
         Navigator.pop(context); // Close the loader
+
+        final box = await Hive.openBox<PasswordEntry>('passwords');
+        final existingIds = box.values.map((e) => e.id).toSet();
+
+        final newEntries = restoredEntries.where((e) => !existingIds.contains(e.id)).toList();
+        await box.addAll(newEntries);
+
         setState(() {
           _entries.clear();
-          _entries.addAll(restoredEntries);
+          _entries.addAll(box.values.toList()); // ✅ Refresh memory list from Hive
         });
-        await SecureStorageManager.saveVault(_entries);
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ Vault restored from Google Drive")),
+          SnackBar(content: Text("✅ Vault restored — ${newEntries.length} new entries merged")),
         );
       } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("❌ Failed to restore: $e")));
+        Navigator.pop(context); // Ensure loader is closed on failure too
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ Failed to restore: $e")),
+        );
       }
     } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("❌ Google sign-in failed")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("❌ Google sign-in failed")),
+      );
     }
   }
 
@@ -575,7 +585,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _exportVault(BuildContext context) async {
-    final passphrase = await _promptForPassphrase(context);
+    final passphrase = await _promptForPassphrase(context, isExport: true);
     if (passphrase == null || passphrase.isEmpty) return;
 
     final entries = await SecureStorageManager().getAllEntries();
@@ -586,13 +596,18 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<String?> _promptForPassphrase(BuildContext context) async {
+  Future<String?> _promptForPassphrase(BuildContext context, {required bool isExport}) async {
     String passphrase = '';
     return showDialog<String>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Enter Export Passphrase'),
+          title: Text(
+            isExport
+                ? 'Enter any Passphrase to export'
+                : 'Enter passphrase to decrypt and import vault',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           content: TextField(
             autofocus: true,
             obscureText: true,
@@ -606,12 +621,77 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, passphrase),
-              child: const Text('Export'),
+              child: Text(
+                isExport
+                    ? 'Export'
+                    : 'Import',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         );
       },
     );
+  }
+
+  Future<void> _importVault(BuildContext context) async {
+    try {
+      // 🔓 Request permissions first
+      final androidInfo = await DeviceInfoPlugin().androidInfo;
+      final sdkInt = androidInfo.version.sdkInt;
+
+      bool isGranted = false;
+
+      if (sdkInt >= 33) {
+        final photos = await Permission.photos.request();
+        isGranted = photos.isGranted;
+      } else {
+        final storage = await Permission.storage.request();
+        isGranted = storage.isGranted;
+      }
+
+      if (!isGranted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("❌ Permission denied to access storage.")),
+        );
+        return;
+      }
+
+      // 📁 Ask user to select folder containing vault_backup.vault
+      final selectedDir = await FilePicker.platform.getDirectoryPath();
+      if (selectedDir == null) return;
+
+      final vaultFilePath = '$selectedDir/vault_backup.vault';
+      final file = File(vaultFilePath);
+
+      if (!await file.exists()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("❌ vault_backup.vault not found in selected folder.")),
+        );
+        return;
+      }
+
+      // 🔐 Now ask for passphrase
+      final passphrase = await _promptForPassphrase(context, isExport: false);
+      if (passphrase == null || passphrase.isEmpty) return;
+
+      final success = await VaultImporter.importVault(context, vaultFilePath, passphrase);
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Vault imported successfully')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('❌ Failed to import vault')),
+        );
+      }
+    } catch (e) {
+      print("❌ Import failed: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Import failed: $e")),
+      );
+    }
   }
 
   @override
@@ -874,6 +954,14 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: () {
                 Navigator.pop(context); // close the drawer
                 _exportVault(context);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.upload_file),
+              title: Text('Import Vault'),
+              onTap: () {
+                Navigator.pop(context);
+                _importVault(context);
               },
             ),
             ListTile(
@@ -1169,59 +1257,70 @@ class VaultBackupManager {
   static Future<List<PasswordEntry>> restoreFromDrive(
       GoogleSignInAccount googleUser,
       ) async {
-    final authHeaders = await googleUser.authHeaders;
-    final client = GoogleAuthClient(authHeaders);
-    final driveApi = drive.DriveApi(client);
+    try {
+      final authHeaders = await googleUser.authHeaders;
+      final client = GoogleAuthClient(authHeaders);
+      final driveApi = drive.DriveApi(client);
 
-    final fileList = await driveApi.files.list(spaces: 'appDataFolder');
-    final allFiles = fileList.files ?? [];
+      // 1. List all files in appDataFolder
+      final fileList = await driveApi.files.list(spaces: 'appDataFolder');
+      final allFiles = fileList.files ?? [];
 
-    final backupFile = allFiles.firstWhere(
-          (f) => f.name == 'vault_backup.json',
-      orElse: () => throw Exception("Backup file not found"),
-    );
+      // 2. Find vault_backup.json
+      final backupFile = allFiles.firstWhere(
+            (f) => f.name == 'vault_backup.json',
+        orElse: () => throw Exception("Backup file not found"),
+      );
 
-    if (backupFile.id == null) {
-      throw Exception("Backup file missing ID.");
-    }
-
-    final media = await driveApi.files.get(
-      backupFile.id!,
-      downloadOptions: drive.DownloadOptions.fullMedia,
-    ) as drive.Media;
-
-    final content = await utf8.decoder.bind(media.stream).join();
-    final jsonData = jsonDecode(content) as List<dynamic>;
-    final restoredEntries = jsonData.map((e) => PasswordEntry.fromJson(e)).toList();
-
-    final tempDir = await getTemporaryDirectory();
-
-    for (final entry in restoredEntries) {
-      entry.imagePaths.clear();
-      int index = 0;
-
-      while (true) {
-        final expectedName = 'vault_image_${entry.id}_$index.png';
-        final matching = allFiles.where((f) => f.name == expectedName).toList();
-
-        if (matching.isEmpty || matching.first.id == null) break;
-
-        final imageMedia = await driveApi.files.get(
-          matching.first.id!,
-          downloadOptions: drive.DownloadOptions.fullMedia,
-        ) as drive.Media;
-
-        final filePath = '${tempDir.path}/$expectedName';
-        final imageFile = File(filePath);
-        final sink = imageFile.openWrite();
-        await imageMedia.stream.pipe(sink);
-
-        entry.imagePaths.add(filePath);
-        index++;
+      if (backupFile.id == null) {
+        throw Exception("Backup file missing ID.");
       }
-    }
 
-    return restoredEntries;
+      // 3. Download and parse main vault JSON
+      final media = await driveApi.files.get(
+        backupFile.id!,
+        downloadOptions: drive.DownloadOptions.fullMedia,
+      ) as drive.Media;
+
+      final content = await utf8.decoder.bind(media.stream).join();
+      final jsonData = jsonDecode(content) as List<dynamic>;
+      final restoredEntries = jsonData.map((e) => PasswordEntry.fromJson(e)).toList();
+
+      // 4. Download associated images for each entry
+      final tempDir = await getTemporaryDirectory();
+
+      for (final entry in restoredEntries) {
+        entry.imagePaths.clear();
+        int index = 0;
+
+        while (true) {
+          final expectedName = 'vault_image_${entry.id}_$index.png';
+
+          final matchingList = allFiles.where((f) => f.name == expectedName).toList();
+          if (matchingList.isEmpty || matchingList.first.id == null) break;
+
+          final matching = matchingList.first;
+
+          final imageMedia = await driveApi.files.get(
+            matching.id!,
+            downloadOptions: drive.DownloadOptions.fullMedia,
+          ) as drive.Media;
+
+          final filePath = '${tempDir.path}/$expectedName';
+          final imageFile = File(filePath);
+          final sink = imageFile.openWrite();
+          await imageMedia.stream.pipe(sink);
+
+          entry.imagePaths.add(filePath);
+          index++;
+        }
+      }
+      debugPrint("✅ Vault and images restored from Drive");
+      return restoredEntries;
+    } catch (e) {
+      debugPrint("❌ Failed to restore from Drive: $e");
+      rethrow;
+    }
   }
 }
 
