@@ -279,41 +279,49 @@ class _HomeScreenState extends State<HomeScreen> {
     final account = await GoogleSignIn(
       scopes: [drive.DriveApi.driveAppdataScope],
     ).signIn();
-    if (account != null) {
-      try {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => const Center(child: CircularProgressIndicator()),
-        );
 
-        final restoredEntries = await VaultBackupManager.restoreFromDrive(account);
-
-        Navigator.pop(context); // Close the loader
-
-        final box = await Hive.openBox<PasswordEntry>('passwords');
-        final existingIds = box.values.map((e) => e.id).toSet();
-
-        final newEntries = restoredEntries.where((e) => !existingIds.contains(e.id)).toList();
-        await box.addAll(newEntries);
-
-        setState(() {
-          _entries.clear();
-          _entries.addAll(box.values.toList()); // ✅ Refresh memory list from Hive
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("✅ Vault restored — ${newEntries.length} new entries merged")),
-        );
-      } catch (e) {
-        Navigator.pop(context); // Ensure loader is closed on failure too
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Failed to restore: $e")),
-        );
-      }
-    } else {
+    if (account == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("❌ Google sign-in failed")),
+      );
+      return;
+    }
+
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+
+      // Get restored entries from Drive
+      final restoredEntries = await VaultBackupManager.restoreFromDrive(account);
+
+      // Open Hive box
+      final box = await Hive.openBox<PasswordEntry>('passwords');
+
+      // Replace existing vault entirely (sync)
+      await box.clear();
+      await box.addAll(restoredEntries);
+
+      // Update in-memory list
+      setState(() {
+        _entries
+          ..clear()
+          ..addAll(restoredEntries);
+      });
+
+      Navigator.pop(context); // Close loading dialog
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Vault restored from Google Drive")),
+      );
+    } catch (e) {
+      Navigator.pop(context); // Close loading dialog if open
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Failed to restore vault: $e")),
       );
     }
   }
