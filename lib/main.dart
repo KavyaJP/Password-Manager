@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 // Core Models
 import 'core/models/password_entry.dart';
@@ -13,6 +14,8 @@ import 'features/settings/ui/settings_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await dotenv.load(fileName: ".env");
 
   await Hive.initFlutter();
   Hive.registerAdapter(PasswordEntryAdapter());

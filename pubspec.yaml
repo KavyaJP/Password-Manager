@@ -1,6 +1,6 @@
 name: password_manager
 description: "A secure Flutter-based password manager for Android"
-publish_to: 'none'
+publish_to: "none"
 
 version: 1.0.0+1
 
@@ -33,6 +33,7 @@ dependencies:
   hive_generator: ^2.0.1
   build_runner: ^2.4.7
   url_launcher: ^6.3.2
+  flutter_dotenv: ^6.0.0
 
 dev_dependencies:
   flutter_test:
@@ -49,6 +50,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - .env
     - icon.png
     - icons/password_generate_white.png
     - icons/password_generate_black.png
