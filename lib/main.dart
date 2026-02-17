@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:local_auth/local_auth.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Core Models
 import 'core/models/password_entry.dart';
@@ -15,11 +15,19 @@ import 'features/settings/ui/settings_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await dotenv.load(fileName: ".env");
+  // 1. Load Environment Variables
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint("Warning: .env file not found. Desktop auth may fail.");
+  }
 
-  await Hive.initFlutter();
+  // 2. Initialize Hive in 'PassMate' subdirectory
+  await Hive.initFlutter('PassMate');
+
   Hive.registerAdapter(PasswordEntryAdapter());
 
+  // 3. Load Theme Preference
   final prefs = await SharedPreferences.getInstance();
   final isDark = prefs.getBool('isDarkTheme') ?? false;
 
@@ -45,7 +53,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     _themeNotifier = ValueNotifier(widget.initialThemeMode);
     WidgetsBinding.instance.addObserver(this);
-    // You might want to move this auth check to a Controller later
     WidgetsBinding.instance.addPostFrameCallback((_) => _triggerAuth());
   }
 
@@ -55,8 +62,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _themeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
   }
 
-  void _triggerAuth() async {
+  Future<void> _triggerAuth() async {
     await Future.delayed(const Duration(milliseconds: 500));
+
     final localAuth = LocalAuthentication();
     final canCheck =
         await localAuth.canCheckBiometrics ||
@@ -67,7 +75,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         final didAuth = await localAuth.authenticate(
           localizedReason: 'Please authenticate to access your vault',
           options: const AuthenticationOptions(
-            biometricOnly: false, // Changed to false to allow PIN fallback
+            biometricOnly: false,
             stickyAuth: true,
           ),
         );
@@ -80,7 +88,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         debugPrint("Auth Error: $e");
       }
     } else {
-      // If no auth available on device, unlock by default or show setup warning
       _isUnlocked.value = true;
     }
   }
@@ -128,7 +135,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           theme: ThemeData.light(),
           darkTheme: ThemeData.dark(),
           themeMode: mode,
-          // Define routes here for easy navigation
           routes: {
             '/home': (context) => HomeScreen(
               onThemeChanged: _toggleTheme,

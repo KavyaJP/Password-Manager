@@ -37,18 +37,17 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> _init() async {
-    await _loadVault();
+    await refresh(); // Load data immediately on startup
     await _checkAuthStatus();
   }
 
-  // --- Vault Management ---
-
-  Future<void> _loadVault() async {
+  /// 🔄 Reloads data from Hive (Call this after adding/editing)
+  Future<void> refresh() async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      // Ensure Hive is ready
+      // Ensure box is open (important if path changed)
       await _storageService.init();
       _allEntries = await _storageService.getAllEntries();
       _applyFilters();

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart'; // For Clipboard
 import '../logic/home_controller.dart';
 import '../../../../core/models/password_entry.dart';
 import '../../../../features/entry/ui/entry_screen.dart';
-import '../../settings/ui/settings_screen.dart';
+import '../../../../features/settings/ui/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final void Function(bool) onThemeChanged;
@@ -41,9 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -59,9 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: InputDecoration(
                 hintText: "Search...",
                 prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 filled: true,
                 fillColor: Theme.of(context).cardColor,
                 contentPadding: EdgeInsets.zero,
@@ -90,7 +86,10 @@ class _HomeScreenState extends State<HomeScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const EntryScreen()),
-          ).then((_) => _controller.search("")); // Refresh on return
+          ).then((_) {
+            // 🔄 Force refresh when coming back from Add Screen
+            _controller.refresh();
+          });
         },
         child: const Icon(Icons.add),
       ),
@@ -158,16 +157,13 @@ class _HomeScreenState extends State<HomeScreen> {
             const Divider(),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text(
-                'Sign Out',
-                style: TextStyle(color: Colors.red),
-              ),
+              title: const Text('Sign Out', style: TextStyle(color: Colors.red)),
               onTap: () {
                 _controller.signOut();
                 Navigator.pop(context);
               },
             ),
-          ],
+          ]
         ],
       ),
     );
@@ -190,7 +186,10 @@ class _HomeScreenState extends State<HomeScreen> {
               MaterialPageRoute(
                 builder: (_) => EntryScreen(existingEntry: entry),
               ),
-            ).then((_) => _controller.search("")); // Refresh
+            ).then((_) {
+              // 🔄 Force refresh when coming back from Edit Screen
+              _controller.refresh();
+            });
           },
         );
       },
@@ -204,10 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text("Delete Entry?"),
         content: Text("Are you sure you want to delete '${entry.service}'?"),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
           TextButton(
             onPressed: () {
               _controller.deleteEntry(entry.id);
@@ -243,9 +239,7 @@ class _PasswordListTileState extends State<_PasswordListTile> {
 
   void _copyToClipboard(String text, String label) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text("$label copied!")));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$label copied!")));
   }
 
   @override
@@ -254,19 +248,13 @@ class _PasswordListTileState extends State<_PasswordListTile> {
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       child: ListTile(
         onTap: widget.onTap,
-        title: Text(
-          widget.entry.service,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: Text(widget.entry.service, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             GestureDetector(
               onTap: () => _copyToClipboard(widget.entry.username, "Username"),
-              child: Text(
-                widget.entry.username,
-                style: const TextStyle(color: Colors.blueGrey),
-              ),
+              child: Text(widget.entry.username, style: const TextStyle(color: Colors.blueGrey)),
             ),
             const SizedBox(height: 4),
             Row(
@@ -280,8 +268,7 @@ class _PasswordListTileState extends State<_PasswordListTile> {
                 if (_isVisible)
                   IconButton(
                     icon: const Icon(Icons.copy, size: 16),
-                    onPressed: () =>
-                        _copyToClipboard(widget.entry.password, "Password"),
+                    onPressed: () => _copyToClipboard(widget.entry.password, "Password"),
                   ),
               ],
             ),
