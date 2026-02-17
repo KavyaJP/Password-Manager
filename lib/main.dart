@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'models/password_entry.dart';
-import 'lock_screen.dart';
-import 'home_screen.dart';
-import 'settings_screen.dart';
-import 'onboarding_screen.dart';
+// Core Models
+import 'core/models/password_entry.dart';
+
+// Features
+import 'features/home/ui/home_screen.dart';
+import 'features/lock/ui/lock_screen.dart';
+import 'features/settings/ui/settings_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +42,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     _themeNotifier = ValueNotifier(widget.initialThemeMode);
     WidgetsBinding.instance.addObserver(this);
+    // You might want to move this auth check to a Controller later
     WidgetsBinding.instance.addPostFrameCallback((_) => _triggerAuth());
   }
 
@@ -54,21 +55,30 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void _triggerAuth() async {
     await Future.delayed(const Duration(milliseconds: 500));
     final localAuth = LocalAuthentication();
-    final canCheck = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
+    final canCheck =
+        await localAuth.canCheckBiometrics ||
+        await localAuth.isDeviceSupported();
 
     if (canCheck) {
-      final didAuth = await localAuth.authenticate(
-        localizedReason: 'Please authenticate to access your vault',
-        options: const AuthenticationOptions(
-          biometricOnly: true,
-          stickyAuth: true,
-        ),
-      );
+      try {
+        final didAuth = await localAuth.authenticate(
+          localizedReason: 'Please authenticate to access your vault',
+          options: const AuthenticationOptions(
+            biometricOnly: false, // Changed to false to allow PIN fallback
+            stickyAuth: true,
+          ),
+        );
 
-      if (didAuth) {
-        _isUnlocked.value = true;
-        _shouldCheckLock = false;
+        if (didAuth) {
+          _isUnlocked.value = true;
+          _shouldCheckLock = false;
+        }
+      } catch (e) {
+        debugPrint("Auth Error: $e");
       }
+    } else {
+      // If no auth available on device, unlock by default or show setup warning
+      _isUnlocked.value = true;
     }
   }
 
@@ -115,11 +125,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           theme: ThemeData.light(),
           darkTheme: ThemeData.dark(),
           themeMode: mode,
+          // Define routes here for easy navigation
           routes: {
             '/home': (context) => HomeScreen(
-              onThemeChanged: (_) {},
+              onThemeChanged: _toggleTheme,
               isDarkTheme: mode == ThemeMode.dark,
-              onManualLock: () {},
+              onManualLock: _manualLock,
             ),
             '/settings': (context) => SettingsScreen(
               onThemeChanged: _toggleTheme,
@@ -131,16 +142,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             builder: (context, unlocked, _) {
               return unlocked
                   ? HomeScreen(
-                onThemeChanged: _toggleTheme,
-                isDarkTheme: mode == ThemeMode.dark,
-                onManualLock: _manualLock,
-              )
+                      onThemeChanged: _toggleTheme,
+                      isDarkTheme: mode == ThemeMode.dark,
+                      onManualLock: _manualLock,
+                    )
                   : LockScreen(
-                onAuthenticated: () {
-                  _isUnlocked.value = true;
-                  _shouldCheckLock = false;
-                },
-              );
+                      onAuthenticated: () {
+                        _isUnlocked.value = true;
+                        _shouldCheckLock = false;
+                      },
+                    );
             },
           ),
         );

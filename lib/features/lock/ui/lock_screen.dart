@@ -18,11 +18,12 @@ class _LockScreenState extends State<LockScreen> {
   void initState() {
     super.initState();
     _checkIfLockEnabled();
-    _authenticate(); // Trigger authentication as soon as screen opens
+    _authenticate();
   }
 
   Future<void> _checkIfLockEnabled() async {
     final prefs = await SharedPreferences.getInstance();
+    // Default to true if not set, or false? Logic from original file:
     final isLockEnabled = prefs.getBool('lock_enabled') ?? false;
 
     if (isLockEnabled) {
@@ -45,18 +46,24 @@ class _LockScreenState extends State<LockScreen> {
         widget.onAuthenticated();
       }
     } catch (e) {
-      _authenticate();
+      // Retry or handle error
+      // _authenticate(); // careful with infinite loops here
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
       body: Center(
-        child: Text(
-          'Authenticating...',
-          style: TextStyle(fontSize: 18),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.lock, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text('Locked', style: TextStyle(fontSize: 24)),
+            SizedBox(height: 8),
+            Text('Tap to unlock', style: TextStyle(color: Colors.grey)),
+          ],
         ),
       ),
     );

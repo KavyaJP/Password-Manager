@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../logic/settings_controller.dart';
 
 class SettingsScreen extends StatefulWidget {
   final void Function(bool) onThemeChanged;
@@ -16,36 +16,24 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  int _autoLockTimeout = 60; // default: 1 min
-  int _clipboardClearTime = 10; // default: 10 seconds
+  late final SettingsController _controller;
 
-  final List<int> _autoLockOptions = [0, 15, 30, 60, 120, 300]; // in seconds
+  final List<int> _autoLockOptions = [0, 15, 30, 60, 120, 300];
   final List<int> _clipboardOptions = [0, 5, 10, 20, 30, 60];
 
   @override
   void initState() {
     super.initState();
-    _loadSettings();
-  }
-
-  Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _autoLockTimeout = prefs.getInt('autoLockTimeout') ?? 60;
-      _clipboardClearTime = prefs.getInt('clipboardClearTime') ?? 10;
+    _controller = SettingsController();
+    _controller.addListener(() {
+      if (mounted) setState(() {});
     });
   }
 
-  Future<void> _updateAutoLockTimeout(int seconds) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('autoLockTimeout', seconds);
-    setState(() => _autoLockTimeout = seconds);
-  }
-
-  Future<void> _updateClipboardTimeout(int seconds) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('clipboardClearTime', seconds);
-    setState(() => _clipboardClearTime = seconds);
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   String _formatSeconds(int seconds) {
@@ -66,14 +54,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: widget.isDarkTheme,
             onChanged: widget.onThemeChanged,
           ),
-
+          const Divider(),
+          const SizedBox(height: 8),
           const Text(
             "🔒 Auto-lock timeout",
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 8),
           DropdownButton<int>(
-            value: _autoLockTimeout,
+            value: _controller.autoLockTimeout,
             isExpanded: true,
             items: _autoLockOptions.map((seconds) {
               return DropdownMenuItem(
@@ -82,19 +71,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
             }).toList(),
             onChanged: (value) {
-              if (value != null) _updateAutoLockTimeout(value);
+              if (value != null) _controller.updateAutoLockTimeout(value);
             },
           ),
-
           const SizedBox(height: 24),
-
           const Text(
             "📋 Clipboard auto-clear",
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 8),
           DropdownButton<int>(
-            value: _clipboardClearTime,
+            value: _controller.clipboardClearTime,
             isExpanded: true,
             items: _clipboardOptions.map((seconds) {
               return DropdownMenuItem(
@@ -103,7 +90,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
             }).toList(),
             onChanged: (value) {
-              if (value != null) _updateClipboardTimeout(value);
+              if (value != null) _controller.updateClipboardTimeout(value);
             },
           ),
         ],

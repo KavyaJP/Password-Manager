@@ -18,13 +18,13 @@ It uses AES encryption and local Hive storage to protect user data, with optiona
 
 ## 🛠️ Tech Stack
 
-| Layer        | Package / Tool                                             |
-| ------------ | ---------------------------------------------------------- |
-| UI           | Flutter (Material Design)                                  |
-| Local Storage| Hive (NoSQL)                                               |
-| Encryption   | `encrypt`, `flutter_secure_storage`                        |
-| Cloud Sync   | Google Sign-In, Storage Access Framework (SAF)             |
-| State Mgmt   | SetState (basic)                                           |
+| Layer         | Package / Tool                                 |
+| ------------- | ---------------------------------------------- |
+| UI            | Flutter (Material Design)                      |
+| Local Storage | Hive (NoSQL)                                   |
+| Encryption    | `encrypt`, `flutter_secure_storage`            |
+| Cloud Sync    | Google Sign-In, Storage Access Framework (SAF) |
+| State Mgmt    | SetState (basic)                               |
 
 ---
 
@@ -53,8 +53,8 @@ lib/
 ### 🧑‍💻 Installation
 
 ```bash
-git clone https://github.com/KavyaJP/PasswordManagerAndroid.git
-cd PasswordManagerAndroid
+git clone https://github.com/KavyaJP/Password-Manager.git
+cd Password-Manager
 flutter pub get
 flutter run
 ```

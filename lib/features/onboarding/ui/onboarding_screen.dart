@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 class OnboardingScreen extends StatefulWidget {
+  const OnboardingScreen({super.key});
+
   @override
-  _OnboardingScreenState createState() => _OnboardingScreenState();
+  State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
@@ -22,6 +24,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   ];
 
   void _finishOnboarding() {
+    // Navigate directly or use named route if you keep routes in main
     Navigator.of(context).pushReplacementNamed('/home');
   }
 
@@ -42,9 +45,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(_titles[index], style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-                        SizedBox(height: 20),
-                        Text(_subtitles[index], textAlign: TextAlign.center, style: TextStyle(fontSize: 18)),
+                        Text(
+                          _titles[index],
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          _subtitles[index],
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 18),
+                        ),
                       ],
                     ),
                   );
@@ -58,18 +71,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 children: [
                   TextButton(
                     onPressed: _finishOnboarding,
-                    child: Text("Skip"),
+                    child: const Text("Skip"),
                   ),
                   Row(
                     children: List.generate(
                       _titles.length,
-                          (index) => Container(
-                        margin: EdgeInsets.symmetric(horizontal: 4),
+                      (index) => Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
                         width: 10,
                         height: 10,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: _currentPage == index ? Colors.blue : Colors.grey,
+                          color: _currentPage == index
+                              ? Colors.blue
+                              : Colors.grey,
                         ),
                       ),
                     ),
@@ -80,16 +95,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         _finishOnboarding();
                       } else {
                         _pageController.nextPage(
-                          duration: Duration(milliseconds: 300),
+                          duration: const Duration(milliseconds: 300),
                           curve: Curves.easeInOut,
                         );
                       }
                     },
-                    child: Text(_currentPage == _titles.length - 1 ? "Done" : "Next"),
+                    child: Text(
+                      _currentPage == _titles.length - 1 ? "Done" : "Next",
+                    ),
                   ),
                 ],
               ),
-            )
+            ),
           ],
         ),
       ),
